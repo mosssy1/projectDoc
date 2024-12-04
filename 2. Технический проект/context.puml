@@ -1,0 +1,26 @@
+@startuml
+title "C4. Контекст"
+
+!include <C4/C4_Container>
+
+Person(buyer, "Покупатель", "Ищет и покупает товары, оставляет отзывы, взаимодействует с продавцами")
+Person(seller, "Продавец", "Добавляет товары, управляет заказами, анализирует продажи")
+Person(admin, "Администратор", "Управление пользователями, модерация контента, настройка системы")
+
+System(marketplaceSystem, "Система маркетплейса", "Платформа для торговли между покупателями и продавцами")
+
+System_Ext(paymentGateway, "Платёжная система", "Обработка транзакций и рекуррентных платежей")
+System_Ext(emailService, "Сервис уведомлений", "Информирование пользователей")
+System_Ext(deliveryService, "Сервис доставки", "Расчёта и управление доставкой")
+System_Ext(analyticsSystem, "Система аналитики", "Сбор и анализ метрик для продавцов и администраторов")
+
+
+buyer ---> marketplaceSystem : Поиск товаров, покупки
+seller ---> marketplaceSystem : Управление товарами, анализ продаж
+admin ---> marketplaceSystem : Управление пользователями, модерация
+
+marketplaceSystem --> paymentGateway : Обработка платежей
+marketplaceSystem --> emailService : Отправка уведомлений
+marketplaceSystem --> analyticsSystem : Передача данных для аналитики
+marketplaceSystem --> deliveryService : Передача данных для доставки
+@enduml

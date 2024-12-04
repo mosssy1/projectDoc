@@ -1,0 +1,67 @@
+@startuml
+title "C4. Контейнеры"
+
+!include <C4/C4_Container>
+
+Person(buyer, "Покупатель", "Ищет и покупает товары через веб или мобильное приложение")
+Person(seller, "Продавец", "Добавляет товары, управляет заказами и анализирует продажи")
+Person(admin, "Администратор", "Управляет пользователями, модерацией контента и настройками системы")
+
+System_Boundary(marketplaceSystem, "Система маркетплейса") {
+    Container(webApp, "Веб-приложение", "Vue.js", "Веб приложение для покупателей, продавцов и администраторов")
+    Container(mobileApp, "Мобильное приложение", "Vue Native", "Мобильное приложение для iOS и Android")
+    Container(apiGateway, "API Gateway", "Nginx", "Маршрутизация запросов к микросервисам")
+
+    Container(authService, "Сервис авторизации", "Java", "Управление аутентификацией и авторизацией")
+    Container(productService, "Сервис товаров", "Go", "Управление товарами и категориями")
+    Container(orderService, "Сервис заказов", "Go", "Обработка заказов и управление ими")
+    Container(notificationService, "Сервис уведомлений", "Java", "Обработка событий и формирование контента уведомлений")
+
+    Container(eventBus, "Шина событий", "RabbitMQ", "Асинхронное взаимодействие между сервисами")
+    ContainerDb(authDb, "База данных авторизации", "PostgreSQL", "Хранение данных пользователей")
+    ContainerDb(productDb, "База данных товаров", "PostgreSQL", "Шардирование по хешированию ID товаров")
+    ContainerDb(orderDb, "База данных заказов", "PostgreSQL", "Шардирование по регионам")
+    Container(redisCache, "Кеш", "Redis", "Кеширование запросов для ускорения доступа к данным")
+    Container(objectStorage, "Объектное хранилище", "Яндекс.Облако", "Хранение изображений и файлов")
+    Container(empty, " ", " ", "")
+}
+
+System_Ext(paymentGateway, "Платёжная система", "Обработка транзакций и рекуррентных платежей")
+System_Ext(deliveryService, "Сервис доставки", "Расчёт маршрутов и управление доставкой")
+System_Ext(analyticsService, "Система аналитики", "Сбор и анализ данных для мониторинга и отчетов")
+System_Ext(notificationSystem, "Система уведомлений", "Отправка Email и Push-уведомлений")
+
+Rel(productService, empty, "") ' Пустая стрелка, чтобы увеличить расстояние
+Rel(empty, eventBus, "Публикация событий", "AMQP")
+
+Rel(buyer, webApp, "Ищет товары, оформляет заказы через веб", "HTTPS")
+Rel(buyer, mobileApp, "Ищет товары, оформляет заказы через мобильное приложение", "HTTPS")
+Rel(seller, webApp, "Добавляет и редактирует товары через веб", "HTTPS")
+Rel(seller, mobileApp, "Добавляет и редактирует товары через мобильное приложение", "HTTPS")
+Rel(admin, webApp, "Управляет пользователями и модерацией через веб-приложение", "HTTPS")
+
+Rel(webApp, apiGateway, "Запросы на выполнение операций", "HTTPS")
+Rel(mobileApp, apiGateway, "Запросы на выполнение операций", "HTTPS")
+Rel(apiGateway, authService, "Аутентификация и авторизация", "HTTP/REST")
+Rel(apiGateway, productService, "Данные о товарах", "HTTP/REST")
+Rel(apiGateway, orderService, "Управление заказами", "HTTP/REST")
+
+Rel(authService, authDb, "Чтение и запись данных пользователей", "SQL")
+Rel(authService, eventBus, "Публикация событий для уведомлений", "AMQP")
+Rel(productService, productDb, "Хранение данных о товарах", "SQL + Шардирование")
+Rel(orderService, orderDb, "Хранение данных о заказах", "SQL + Шардирование")
+Rel(productService, redisCache, "Кеширование запросов к товарам", "Redis Protocol")
+Rel(orderService, redisCache, "Кеширование запросов к заказам", "Redis Protocol")
+Rel(productService, objectStorage, "Хранение изображений товаров", "S3 API")
+
+Rel(orderService, paymentGateway, "Платежи", "HTTPS/REST")
+Rel(orderService, deliveryService, "Управление доставкой", "HTTPS/REST")
+Rel(notificationService, notificationSystem, "Отправка уведомлений", "HTTPS/REST")
+
+Rel(orderService, eventBus, "Публикация событий о заказах", "AMQP")
+Rel(productService, eventBus, "Публикация событий о товарах", "AMQP")
+Rel(eventBus, notificationService, "События для уведомлений", "AMQP")
+Rel(eventBus, analyticsService, "События для аналитики", "AMQP")
+
+
+@enduml
