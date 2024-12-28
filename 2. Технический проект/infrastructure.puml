@@ -1,0 +1,114 @@
+@startuml
+!define C4P https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master
+!includeurl C4P/C4_Container.puml
+
+title C4 Инфраструктурная диаграмма - Интернет-магазин
+
+package "Яндекс.Облако" as cloud {
+    Container(nginx, "Nginx", "Nginx", "Обратный прокси и балансировщик нагрузки")
+
+
+    package "Kubernetes Cluster" as k8s_cluster {
+        package "Auth Pod" as auth_pod {
+            Container(auth_service, "Auth Service", "Java, Spring Boot", "Шлюз авторизации и аутентификации")
+        }
+
+        package "Product Pod" as product_pod {
+            Container(product_service, "Product Service", "Go", "Управление товарами и категориями")
+        }
+
+        package "Order Pod" as order_pod {
+            Container(order_service, "Order Service", "Go", "Обработка заказов и управление ими")
+        }
+
+        package "Notification Pod" as notification_pod {
+            Container(notification_service, "Notification Service", "Java", "Обработка событий и уведомлений")
+        }
+
+        package "Adapter Pod" as adapter_pod {
+            Container(service_adapter, "Service Adapter", "Java", "Адаптер для взаимодействия с внешними сервисами")
+        }
+    }
+
+    Container(kafka, "Event Bus", "RabbitMQ", "Шина событий для асинхронного взаимодействия между сервисами")
+}
+
+package "Database" as database {
+    package "DB auth" as DBauth {
+        Container(database_r_master, "PostgreSQL Master", "PostgreSQL", "Основная база данных для авторизации")
+        Container(database_r_replica, "PostgreSQL Replica", "PostgreSQL", "Реплика базы данных для авторизации")
+    }
+
+    package "DB product" as DBproduct {
+
+         package "DB ID_1" as DB_ID_1 {
+         Container(database_r1_master, "PostgreSQL Master", "PostgreSQL", "Основная база данных товаров, шард по хешированию №1 ")
+         Container(database_r1_replica, "PostgreSQL Replica", "PostgreSQL", "Реплика базы данных товаров, шард по хешированию №1")
+         }
+
+         package "DB ID_N" as DB_ID_N {
+         Container(database_rn_master, "PostgreSQL Master", "PostgreSQL", "Основная база данных товаров, шард по хешированию №n")
+         Container(database_rn_replica, "PostgreSQL Replica", "PostgreSQL", "Реплика базы данных товаров, шард по хешированию №n")
+         }
+   }
+    package "DB order" as DBorder {
+
+         package "DB Reg_1" as DB_Reg_1 {
+         Container(database_reg1_master, "PostgreSQL Master", "PostgreSQL", "Основная база данных заказа для региона 1")
+         Container(database_reg1_replica, "PostgreSQL Replica", "PostgreSQL", "Реплика базы данных заказа для региона 1")
+         }
+
+         package "DB Reg_N" as DB_Reg_N {
+         Container(database_regn_master, "PostgreSQL Master", "PostgreSQL", "Основная база данных заказа для региона n")
+         Container(database_regn_replica, "PostgreSQL Replica", "PostgreSQL", "Реплика базы данных заказа для региона n")
+         }
+      
+    }
+}
+
+package "Object Storage" as object_storage_layer {
+    Container(object_storage, "Object Storage", "Yandex Cloud", "Хранение изображений и файлов товаров")
+}
+
+package "Cache Layer" as cache_layer {
+    Container(redis_cache_product, "Redis Cache Product", "Redis", "Кеширование запросов для товаров")
+    Container(redis_cache_order, "Redis Cache Order", "Redis", "Кеширование запросов для заказов")
+}
+
+System_Ext(payment_system, "Payment System", "Обработка транзакций и рекуррентных платежей")
+System_Ext(delivery_service, "Delivery Service", "Расчёт маршрутов и управление доставкой")
+System_Ext(analytics_service, "Analytics Service", "Сбор и анализ данных для отчетов продавца и рекомендаций")
+System_Ext(notification_system, "Система уведомлений", "Отправка Email и Push-уведомлений")
+
+' Соединения между сервисами и базами данных в каждом регионе
+Rel(k8s_cluster, database , "Чтение/Запись", "JDBC")
+
+' Соединения между мастерами и репликами для репликации данных
+Rel_D(database_r1_master, database_r1_replica, "Репликация", "Streaming")
+Rel_D(database_rn_master, database_rn_replica, "Репликация", "Streaming")
+Rel_D(database_r_master, database_r_replica, "Репликация", "Streaming")
+Rel_D(database_reg1_master, database_reg1_replica, "Репликация", "Streaming")
+Rel_D(database_regn_master, database_regn_replica, "Репликация", "Streaming")
+
+' Взаимодействие с внешними системами
+Rel(service_adapter, payment_system, "Платежи", "HTTPS/REST")
+Rel(service_adapter, delivery_service, "Управление доставкой", "HTTPS/REST")
+Rel(service_adapter, analytics_service, "Аналитика", "HTTPS/REST")
+Rel(notification_service, notification_system, "События для уведомлений", "HTTPS/REST")
+
+' Соединение Nginx с сервисами
+Rel(nginx, k8s_cluster, "Проксирование запросов", "HTTP")
+
+' Взаимодействие сервисов с объектным хранилищем
+Rel(product_service, object_storage, "Сохранение/чтение изображений товаров", "S3 API")
+
+Rel(product_service, redis_cache_product, "Чтение/Запись кеша", "Redis")
+Rel(order_service, redis_cache_order, "Чтение/Запись кеша", "Redis")
+
+Rel(k8s_cluster, kafka, "Публикация событий о заказах и товарах", "Kafka Producer API")
+
+product_service --[hidden]----> redis_cache_product
+product_service --[hidden]----> object_storage
+k8s_cluster ---[hidden]---> database
+
+@enduml

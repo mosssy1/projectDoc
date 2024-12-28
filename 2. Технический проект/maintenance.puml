@@ -1,0 +1,85 @@
+@startuml
+!define C4P https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master
+!includeurl C4P/C4_Container.puml
+!theme vibrant
+
+actor "Разработчик" as developer
+actor "Тестировщик" as tester
+actor "DevOps" as devops
+
+package "Разработка" as development {
+    [GitHub] as vcs << (C, #FFAAAA) >>
+    [GitHub Actions (dev branch)] as dev_branch << (C, #FFAAAA) >>
+    [GitHub Actions (main branch)] as main_branch << (C, #FFAAAA) >>
+
+    developer --> vcs : "Push изменений"
+
+   vcs --> dev_branch : "Триггер ci/cd"
+   vcs --> main_branch : "Merge после тестов "
+}
+
+package "CI/CD Pipeline" as cicd {
+    [Build] as build << (C, #FFAAAA) >>
+    [Test] as test << (C, #FFAAAA) >>
+    [Security Scan] as security_scan << (C, #FFAAAA) >>
+    [Deploy to Stage] as deploy_stage << (C, #FFAAAA) >>
+'    [Deploy to Prod] as deploy_prod << (C, #FFAAAA) >>
+
+    dev_branch --> build : "Запуск CI/CD"
+    build --> test : "Автотесты"
+    test --> security_scan: "Проверка безопасности"
+    security_scan --> deploy_stage : "Деплой на Stage"
+'    deploy_stage --> deploy_prod : "Одобрение на PROD"
+}
+
+'tester --> manual_testing : "Ручное тестирование Stage"
+
+package "Kubernetes Stage Cluster" as k8s_stage {
+    [Docker (Stage)] as docker_stage << (C, #FFAAAA) >>
+    [Service Containers (Stage)] as service_containers_stage << (C, #FFAAAA) >>
+    [Test Report] as test_rep << (C, #FFAAAA) >>
+    docker_stage --> service_containers_stage : "Запуск контейнеров Stage"
+    note right of test_rep
+        Автотесты ci/cd + результаты ручного тестирования
+    end note
+}
+
+package "Kubernetes Prod Cluster" as k8s_prod {
+    [Docker (Prod)] as docker_prod << (C, #FFAAAA) >>
+    [Service Containers (Prod)] as service_containers_prod << (C, #FFAAAA) >>
+    main_branch --> docker_prod : "Обновление Prod"
+    docker_prod --> service_containers_prod : "Запуск контейнеров Prod"
+    note right of service_containers_prod
+        Включает Prod-версии Auth, Product, Order, Notification и Adapter сервисов.
+    end note
+}
+
+package "Maintenance" as maintenance {
+    package "Резервные копии" as backups {
+        [Backup Service - PostgreSQL Backup] as backup_service << (C, #FFAAAA) >>
+    }
+    package "Мониторинг" as monitoring {
+        [Monitoring Service - Prometheus] as monitoring_service << (C, #FFAAAA) >>
+        [Alert System - Grafana Alert] as alert_service << (C, #FFAAAA) >>
+    }
+    package "Логи" as logs {
+        [Log Service] as log_service << (C, #FFAAAA) >>
+    }
+
+    devops -> backups : "Управляет резервными копиями"
+    devops --> logs : "Анализирует логи"
+    devops --> monitoring : "Мониторинг состояния"
+    monitoring_service --> k8s_stage : "Сбор метрик Stage"
+    monitoring_service --> k8s_prod : "Сбор метрик Prod"
+    alert_service --> monitoring_service : "Алерты на проблемы"
+    log_service ---> k8s_stage : "Анализ логов Stage"
+    log_service --> k8s_prod : "Анализ логов Prod"
+}
+
+' Связь CI/CD с кластерами
+developer <---- test_rep
+tester ---> docker_stage : "Ручное тестирование"
+tester ---> test_rep : "Отчеты по ручному тестированию"
+deploy_stage --> docker_stage : "Деплой на Stage"
+'deploy_prod --> docker_prod : "Деплой на Prod"
+@enduml
